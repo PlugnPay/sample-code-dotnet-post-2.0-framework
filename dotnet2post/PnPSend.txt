@@ -1,0 +1,69 @@
+    Protected Function PnPSend(ByVal Params As String, Optional ByVal Url As String = "https://pay1.plugnpay.com/payment/pnpremote.cgi")
+        ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+        ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+        'PNP .Net Framework 2.0 API
+        '
+        'Created 9/18/2009
+        '
+        '
+        'Requirements
+        '- Reference to system.web has to be entered
+        ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+        ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+	If Trim(Url) = "" Then Url = "https://pay1.plugnpay.com/payment/pnpremote.cgi" 
+        Dim uri As New Uri(Url)
+	If Trim(Params) = "" Then Return "pnpcom_err=No Params" 'Checks to make sure Params is not empty
+        If uri.Scheme = uri.UriSchemeHttps Then 'Checks to make sure that the URL is an HTTPS url.
+            '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+            ''''''''''''''''''''''''''''Create Connection Settings'''''''''''''''''''''''''''''''''''''
+            Dim request As System.Net.HttpWebRequest = System.Net.HttpWebRequest.Create(uri)
+            request.Method = System.Net.WebRequestMethods.Http.Post
+            request.ContentLength = Params.Length
+            request.ContentType = "application/x-www-form-urlencoded"
+            '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+            '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+            Try
+                Dim writer As New System.IO.StreamWriter(request.GetRequestStream) 'Open SSL Connection
+                writer.Write(Params) 'Send data to open connection
+                writer.Close()
+                Dim oResponse As System.Net.HttpWebResponse = request.GetResponse() 'Listen for response
+                Dim reader As New System.IO.StreamReader(oResponse.GetResponseStream(), System.Text.Encoding.UTF8) 'Receive response
+                Dim Reply As String = reader.ReadToEnd() 'Read response
+                oResponse.Close()
+                Dim ModeRegEx As New System.Text.RegularExpressions.Regex("mode=(?<Type>query_trans|auth|return)") 'Regex statement to search for mode type
+                Dim Mode As String = ""
+                If ModeRegEx.Match(Params).Success = True Then Mode = ModeRegEx.Match(Params).Result("${Type}") 'Check mode type
+                Select Case Mode 'Switch on mode type
+                    Case "query_trans", "batchassemble", "query_noc", "list_members", "query_billing"
+                        Dim temparray As Array = Split(Reply, "&") 'break up entry into an array
+                        Dim DecodeReply As String = "", i As Integer = 0
+                        Dim TempRegex As New System.Text.RegularExpressions.Regex("^(a|dr)\d+=") 'setup regex search for substrings
+                        While i < temparray.Length
+                            If Not i = 0 Then DecodeReply += "&" 'add back field seperator
+                            If Not TempRegex.Match(temparray(i)).Success Then
+                                DecodeReply += System.Web.HttpUtility.UrlDecode(temparray(i))
+                            Else
+                                DecodeReply += temparray(i) 'add encoded information
+                            End If
+                            i += 1
+                        End While
+                        Return DecodeReply
+                    Case Else
+                        Return System.Web.HttpUtility.UrlDecode(Reply) 'Decode reply and send back
+                End Select
+            Catch Ex As Exception
+                Return "npcom_err=" & System.Web.HttpUtility.UrlDecode(Ex.Message) 'Report back an errors which occurred during the SSL connection
+            End Try
+        Else
+            Return "pnpcom_err=Non HTTPS URL"
+        End If
+    End Function
+
+====================================================
+PlugnPay .Net Version 2.0 DLL
+Version History
+
+- created on 09/30/2009
+- modified on 10/08/2009 to be better compatible with C#
+
+====================================================
